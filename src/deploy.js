@@ -1,7 +1,7 @@
 import { createUmi } from '@metaplex-foundation/umi-bundle-defaults';
 import { walletAdapterIdentity } from '@metaplex-foundation/umi-signer-wallet-adapters';
 import { irysUploader } from '@metaplex-foundation/umi-uploader-irys/web';
-import { createCollectionV1 } from '@metaplex-foundation/mpl-core';
+import { createCollection, mplCore } from '@metaplex-foundation/mpl-core';
 import {
   mplCandyMachine,
   create,
@@ -24,6 +24,7 @@ export function initUmi(network) {
   if (!adapter) throw new Error('Wallet not connected');
   umi = createUmi(RPC_ENDPOINTS[network])
     .use(walletAdapterIdentity(adapter))
+    .use(mplCore())
     .use(mplCandyMachine())
     .use(irysUploader());
   return umi;
@@ -31,13 +32,13 @@ export function initUmi(network) {
 
 export function getUmi() { return umi; }
 
-// Step 1: Create collection on-chain (~0.015 SOL, 1 tx)
+// Step 1: Create collection (~0.015 SOL, 1 tx)
 export async function createOnChainCollection(config, onLog) {
   if (!umi) throw new Error('Umi not initialized');
   onLog('Generating collection keypair…', 'info');
   const signer = generateSigner(umi);
   onLog(`Creating collection: ${config.name}…`, 'info');
-  await createCollectionV1(umi, {
+  await createCollection(umi, {
     collection: signer,
     name: config.name,
     uri: config.collectionUri,
@@ -116,7 +117,7 @@ export async function addItems(cmAddr, items, onProgress, onLog) {
   onLog(`✓ All ${items.length} items loaded`, 'ok');
 }
 
-// Full pipeline: 3 steps, ~5-20 transactions total (not 1000+)
+// Full pipeline
 export async function fullDeploy(config, metadataURIs, collectionMetaURI, onProgress, onLog) {
   onLog('══ STEP 1/3: Create Collection ══', 'info');
   onProgress('step', 0, 100, 'Creating collection…');
