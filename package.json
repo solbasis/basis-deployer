@@ -21,10 +21,14 @@
     "@solana/wallet-adapter-phantom": "^0.9.24",
     "@solana/wallet-adapter-solflare": "^0.6.28",
     "@solana/web3.js": "^1.95.3",
-    "jszip": "^3.10.1"
+    "jszip": "^3.10.1",
+    "buffer": "^6.0.3",
+    "stream-browserify": "^3.0.0",
+    "crypto-browserify": "^3.12.1",
+    "events": "^3.3.0",
+    "util": "^0.12.5"
   },
   "devDependencies": {
-    "vite": "^5.4.0",
-    "buffer": "^6.0.3"
+    "vite": "^5.4.0"
   }
 }

@@ -9,10 +9,17 @@ export default defineConfig({
   resolve: {
     alias: {
       buffer: 'buffer',
+      stream: 'stream-browserify',
+      crypto: 'crypto-browserify',
+      events: 'events',
+      util: 'util',
     },
   },
   build: {
     target: 'esnext',
+    commonjsOptions: {
+      transformMixedEsModules: true,
+    },
     rollupOptions: {
       output: {
         manualChunks: {
