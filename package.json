@@ -1,0 +1,34 @@
+{
+  "name": "basis-deployer",
+  "version": "1.0.0",
+  "description": "BASIS NFT Deployer — Metaplex Core on Solana",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@irys/web-upload": "^0.0.14",
+    "@irys/web-upload-solana": "^0.1.7",
+    "@metaplex-foundation/mpl-core": "^1.1.1",
+    "@metaplex-foundation/mpl-core-candy-machine": "^0.3.0",
+    "@metaplex-foundation/mpl-toolbox": "^0.9.4",
+    "@metaplex-foundation/umi": "^0.9.2",
+    "@metaplex-foundation/umi-bundle-defaults": "^0.9.2",
+    "@metaplex-foundation/umi-signer-wallet-adapters": "^0.9.2",
+    "@solana/wallet-adapter-base": "^0.9.23",
+    "@solana/wallet-adapter-phantom": "^0.9.24",
+    "@solana/wallet-adapter-solflare": "^0.6.28",
+    "@solana/web3.js": "^1.95.3",
+    "jszip": "^3.10.1",
+    "buffer": "^6.0.3",
+    "stream-browserify": "^3.0.0",
+    "crypto-browserify": "^3.12.1",
+    "events": "^3.3.0",
+    "util": "^0.12.5"
+  },
+  "devDependencies": {
+    "vite": "^5.4.0"
+  }
+}
