@@ -2,7 +2,7 @@ import './style.css';
 import { Buffer } from 'buffer';
 import JSZip from 'jszip';
 import { connectWallet, disconnectWallet, getBalance, getPublicKey } from './wallet.js';
-import { initIrys, uploadCollection, uploadFile, getUploadPrice } from './irys.js';
+import { uploadCollection, uploadFile, setUmi } from './irys.js';
 import { initUmi, fullDeploy } from './deploy.js';
 
 // Polyfill Buffer for browser
@@ -337,9 +337,11 @@ $('startUpload').onclick = async () => {
     $('uploadSts').textContent = 'UPLOADING';
     showProg('uploadProg');
 
-    log('uploadLog', 'Initializing Irys…', 'info');
-    await initIrys(network);
-    log('uploadLog', '✓ Irys ready', 'ok');
+    log('uploadLog', 'Initializing Umi uploader…', 'info');
+    const { initUmi: setupUmi } = await import('./deploy.js');
+    const umi = setupUmi(network);
+    setUmi(umi);
+    log('uploadLog', '✓ Uploader ready', 'ok');
 
     log('uploadLog', 'Starting collection upload…', 'info');
     uploadedURIs = await uploadCollection(collectionData, (done, total, msg) => {
@@ -353,7 +355,7 @@ $('startUpload').onclick = async () => {
       ...collectionData.collJson,
       image: uploadedURIs.imageURIs['0.png'] || uploadedURIs.imageURIs['0.jpg'] || '',
     }, null, 2);
-    uploadedURIs.collectionURI = await uploadFile(Buffer.from(collJsonStr), 'application/json');
+    uploadedURIs.collectionURI = await uploadFile(collJsonStr, 'collection.json', 'application/json');
     log('uploadLog', `✓ Collection metadata: ${uploadedURIs.collectionURI}`, 'ok');
 
     setProg('uploadProgF', 'uploadProgP', 'uploadProgL', 100, 'Complete');
