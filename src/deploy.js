@@ -87,7 +87,8 @@ export async function createCandyMachine(config, collectionSigner, onLog) {
     createArgs.guards = guards;
   }
 
-  await create(umi, createArgs).sendAndConfirm(umi);
+  const cmBuilder = await create(umi, createArgs);
+  await cmBuilder.sendAndConfirm(umi);
   const addr = cmSigner.publicKey.toString();
   onLog('✓ Candy Machine: ' + addr, 'ok');
   onLog('  Supply: ' + config.totalItems + ' | Price: ' + (config.mintPrice || 'FREE') + ' SOL', 'info');
@@ -106,13 +107,15 @@ export async function addItems(cmAddr, items, onProgress, onLog) {
     const end = Math.min(start + BATCH, items.length);
     const lines = items.slice(start, end).map(i => ({ name: i.name, uri: i.uri }));
     try {
-      await addConfigLines(umi, { candyMachine: pk, index: start, configLines: lines }).sendAndConfirm(umi);
+      const lnBuilder = addConfigLines(umi, { candyMachine: pk, index: start, configLines: lines });
+      await lnBuilder.sendAndConfirm(umi);
       onProgress(end, items.length, 'Added ' + end + '/' + items.length);
     } catch (err) {
       onLog('  Batch ' + (b+1) + ' failed: ' + err.message + ' — retrying…', 'warn');
       await new Promise(r => setTimeout(r, 2000));
       try {
-        await addConfigLines(umi, { candyMachine: pk, index: start, configLines: lines }).sendAndConfirm(umi);
+        const lnBuilder = addConfigLines(umi, { candyMachine: pk, index: start, configLines: lines });
+      await lnBuilder.sendAndConfirm(umi);
         onProgress(end, items.length, 'Retried ' + end + '/' + items.length);
       } catch (e2) { onLog('  Retry failed: ' + e2.message, 'err'); }
     }
