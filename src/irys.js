@@ -12,7 +12,14 @@ export async function initIrys(network) {
   const adapter = getAdapter();
   if (!adapter) throw new Error('Wallet not connected');
 
-  const irys = await WebUploader(WebSolana).withProvider(adapter).withRpc(RPC_ENDPOINTS[network]).devnet(network !== 'mainnet-beta').build();
+  const rpcUrl = RPC_ENDPOINTS[network];
+  const isDevnet = network !== 'mainnet-beta';
+
+  const irys = await WebUploader(WebSolana)
+    .withProvider(adapter)
+    .withRpc(rpcUrl)
+    .devnet(isDevnet)
+    .build();
 
   irysInstance = irys;
   return irys;
@@ -30,12 +37,35 @@ export async function getUploadPrice(bytes) {
 
 /**
  * Fund the Irys node with SOL for uploads.
+ * Includes retry logic for devnet confirmation delays.
  */
 export async function fundIrys(amountInSOL) {
   if (!irysInstance) throw new Error('Irys not initialized');
   const lamports = Math.ceil(amountInSOL * 1e9);
-  const fundTx = await irysInstance.fund(lamports);
-  return fundTx;
+
+  // Retry up to 3 times — devnet confirmations can be slow
+  let lastError;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      // Wait before retry to let the tx confirm
+      if (attempt > 1) {
+        await new Promise(r => setTimeout(r, 5000));
+      }
+      const fundTx = await irysInstance.fund(lamports);
+      return fundTx;
+    } catch (err) {
+      lastError = err;
+      // If it's a "confirmed tx not found" error, wait and retry
+      if (err.message && err.message.includes('Confirmed tx not found')) {
+        console.log(`Funding attempt ${attempt}/3 — waiting for confirmation...`);
+        await new Promise(r => setTimeout(r, 10000));
+        continue;
+      }
+      // For other errors, throw immediately
+      throw err;
+    }
+  }
+  throw lastError;
 }
 
 /**
@@ -80,11 +110,12 @@ export async function uploadCollection(collectionData, onProgress) {
 
   onProgress(0, total, `Calculating cost for ${(totalSize / 1024 / 1024).toFixed(1)} MB…`);
 
-  // Get price and fund
+  // Get price and fund with buffer
   const costSOL = await getUploadPrice(totalSize);
-  const fundAmount = costSOL * 1.1;
-  onProgress(0, total, `Funding Irys with ${fundAmount.toFixed(4)} SOL…`);
+  const fundAmount = costSOL * 1.2; // 20% buffer for safety
+  onProgress(0, total, `Funding Irys with ${fundAmount.toFixed(4)} SOL (approve in wallet)…`);
   await fundIrys(fundAmount);
+  onProgress(0, total, `Funded! Starting uploads…`);
 
   // Upload images
   for (const [path, entry] of imageEntries) {
