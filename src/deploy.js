@@ -1,5 +1,6 @@
 import { createUmi } from '@metaplex-foundation/umi-bundle-defaults';
 import { walletAdapterIdentity } from '@metaplex-foundation/umi-signer-wallet-adapters';
+import { irysUploader } from '@metaplex-foundation/umi-uploader-irys';
 import {
   createCollection,
   create as createAsset,
@@ -12,14 +13,17 @@ import { RPC_ENDPOINTS } from './rpc.js';
 let umi = null;
 
 /**
- * Initialize Umi with the connected wallet and network.
+ * Initialize Umi with wallet, RPC, and Irys uploader plugin.
+ * The Irys uploader is integrated as a Umi plugin — it handles
+ * funding and uploading automatically through Umi's uploader interface.
  */
 export function initUmi(network) {
   const adapter = getAdapter();
   if (!adapter) throw new Error('Wallet not connected');
 
   umi = createUmi(RPC_ENDPOINTS[network])
-    .use(walletAdapterIdentity(adapter));
+    .use(walletAdapterIdentity(adapter))
+    .use(irysUploader());
 
   return umi;
 }
