@@ -2,8 +2,8 @@ import './style.css';
 import { Buffer } from 'buffer';
 import JSZip from 'jszip';
 import { connectWallet, disconnectWallet, getBalance, getPublicKey } from './wallet.js';
-import { uploadCollection, uploadFile, setUmi } from './irys.js';
-import { initUmi, fullDeploy } from './deploy.js';
+import { uploadCollection, uploadFile } from './irys.js';
+import { initUmi, getUmi, fullDeploy } from './deploy.js';
 
 // Polyfill Buffer for browser
 window.Buffer = Buffer;
@@ -125,14 +125,19 @@ document.getElementById('app').innerHTML = `
       <div class="g2"><div class="field"><label>Name</label><input type="text" id="deployName"></div><div class="field"><label>Symbol</label><input type="text" id="deploySymbol" maxlength="10"></div></div>
       <div class="field"><label>Description</label><input type="text" id="deployDesc"></div>
       <div class="field"><label>External URL</label><input type="url" id="deployUrl"></div>
+      <hr><h3>> Mint Settings</h3>
+      <div class="g2"><div class="field"><label>Mint Price (SOL)</label><input type="number" id="mintPrice" value="0" min="0" step="0.01" placeholder="0 = free mint"></div><div class="field"><label>Max per Wallet</label><input type="number" id="mintLimit" value="0" min="0" placeholder="0 = unlimited"></div></div>
+      <div class="g2"><div class="field"><label>Mint Start (UTC)</label><input type="text" id="mintStart" placeholder="YYYY-MM-DDTHH:MM:SS e.g. 2025-06-01T18:00:00"></div><div class="field"><label>Creator / Treasury Wallet</label><input type="text" id="deployCreator"></div></div>
       <hr><h3>> Royalties</h3>
-      <div class="g2"><div class="field"><label>Royalty (bps)</label><input type="number" id="deployRoyalty" value="500" min="0" max="10000"></div><div class="field"><label>Creator Wallet</label><input type="text" id="deployCreator"></div></div>
+      <div class="g2"><div class="field"><label>Royalty (bps)</label><input type="number" id="deployRoyalty" value="500" min="0" max="10000"></div><div class="field"></div></div>
       <hr><h3>> Cost Estimate</h3>
+      <p style="font-size:.60rem;color:var(--text-dim);margin-bottom:6px">With Candy Machine, <strong style="color:var(--pos)">buyers pay mint cost</strong> — you only pay for setup + upload.</p>
       <div class="kv" id="costEstimate">
-        <div class="kv-row"><span class="kv-k">Collection creation</span><span class="kv-v">~0.01 SOL</span></div>
+        <div class="kv-row"><span class="kv-k">Collection creation</span><span class="kv-v">~0.015 SOL</span></div>
+        <div class="kv-row"><span class="kv-k">Candy Machine</span><span class="kv-v">~0.02 SOL</span></div>
         <div class="kv-row"><span class="kv-k">Arweave uploads</span><span class="kv-v" id="costUploads">—</span></div>
-        <div class="kv-row"><span class="kv-k">Minting</span><span class="kv-v" id="costMint">—</span></div>
-        <div class="kv-row" style="border-top:1px solid var(--border-hi)"><span class="kv-k" style="color:var(--text)">Total</span><span class="kv-v" id="costTotal" style="font-size:.74rem">—</span></div>
+        <div class="kv-row"><span class="kv-k">Config lines (~10/tx)</span><span class="kv-v" id="costMint">—</span></div>
+        <div class="kv-row" style="border-top:1px solid var(--border-hi)"><span class="kv-k" style="color:var(--text)">Total (creator pays)</span><span class="kv-v" id="costTotal" style="font-size:.74rem;color:var(--pos)">—</span></div>
       </div>
       <div class="btn-row"><button class="btn" id="backStep3">← Back</button><button class="btn btn-p" id="nextStep3">Continue →</button></div>
     </div>
@@ -155,8 +160,8 @@ document.getElementById('app').innerHTML = `
   <div class="step-content" id="step-5">
     <div class="panel">
       <div class="pbar"><div class="pbar-l"><div class="pdots"><span class="pdot"></span><span class="pdot"></span><span class="pdot"></span></div><div class="plbl">Deploy</div></div><div class="psts" id="deploySts">Ready</div></div>
-      <h2>> Deploy On-Chain</h2>
-      <p style="font-size:.66rem;color:var(--text-dim);margin-bottom:14px">Creates the Metaplex Core collection and mints all NFTs on Solana.</p>
+      <h2>> Deploy Candy Machine</h2>
+      <p style="font-size:.66rem;color:var(--text-dim);margin-bottom:14px">Creates collection + Candy Machine on Solana. Buyers will mint on demand — you don't pre-mint. ~3-20 transactions total.</p>
       <div class="btn-row" style="margin-top:0"><button class="btn" id="backStep5">← Back</button><button class="btn btn-p btn-lg" id="startDeploy">🚀 Deploy</button></div>
       <div class="prog-wrap" id="deployProg"><div class="prog-lbl"><span id="deployProgL">…</span><span id="deployProgP">0%</span></div><div class="prog-track"><div class="prog-fill" id="deployProgF"></div></div></div>
       <div class="deploy-log" id="deployLog" style="display:none"></div>
@@ -171,7 +176,9 @@ document.getElementById('app').innerHTML = `
       <h2>> 🎉 Collection is Live!</h2>
       <div class="kv" style="margin-bottom:12px">
         <div class="kv-row"><span class="kv-k">Collection</span><span class="kv-v" id="finalAddr" style="font-size:.56rem">—</span></div>
-        <div class="kv-row"><span class="kv-k">Minted</span><span class="kv-v" id="finalMinted">—</span></div>
+        <div class="kv-row"><span class="kv-k">Candy Machine</span><span class="kv-v" id="finalCM" style="font-size:.56rem">—</span></div>
+        <div class="kv-row"><span class="kv-k">Items Loaded</span><span class="kv-v" id="finalMinted">—</span></div>
+        <div class="kv-row"><span class="kv-k">Mint Price</span><span class="kv-v" id="finalPrice">—</span></div>
         <div class="kv-row"><span class="kv-k">Network</span><span class="kv-v" id="finalNet">—</span></div>
       </div>
       <h3>> View On</h3>
@@ -318,11 +325,12 @@ function updateCosts() {
   const n = Object.keys(collectionData.images).length;
   const sizeMB = collectionData.file.size / 1024 / 1024;
   const uploadCost = (sizeMB / 1024) * 0.8 + 0.05;
-  const mintCost = n * 0.003;
-  const total = 0.01 + uploadCost + mintCost;
-  $('costUploads').textContent = `~${uploadCost.toFixed(2)} SOL`;
-  $('costMint').textContent = `~${mintCost.toFixed(2)} SOL`;
-  $('costTotal').textContent = `~${total.toFixed(2)} SOL`;
+  const configTxs = Math.ceil(n / 10);
+  const configCost = configTxs * 0.00015;
+  const total = 0.015 + 0.02 + uploadCost + configCost;
+  $('costUploads').textContent = `~${uploadCost.toFixed(3)} SOL`;
+  $('costMint').textContent = `${configTxs} txs (~${configCost.toFixed(4)} SOL)`;
+  $('costTotal').textContent = `~${total.toFixed(3)} SOL`;
 }
 $('backStep3').onclick = () => goToStep(2);
 $('nextStep3').onclick = () => { completeStep(3); goToStep(4); };
@@ -337,10 +345,8 @@ $('startUpload').onclick = async () => {
     $('uploadSts').textContent = 'UPLOADING';
     showProg('uploadProg');
 
-    log('uploadLog', 'Initializing Umi uploader…', 'info');
-    const { initUmi: setupUmi } = await import('./deploy.js');
-    const umi = setupUmi(network);
-    setUmi(umi);
+    log('uploadLog', 'Initializing Umi + Irys uploader…', 'info');
+    initUmi(network);
     log('uploadLog', '✓ Uploader ready', 'ok');
 
     log('uploadLog', 'Starting collection upload…', 'info');
@@ -355,7 +361,10 @@ $('startUpload').onclick = async () => {
       ...collectionData.collJson,
       image: uploadedURIs.imageURIs['0.png'] || uploadedURIs.imageURIs['0.jpg'] || '',
     }, null, 2);
-    uploadedURIs.collectionURI = await uploadFile(collJsonStr, 'collection.json', 'application/json');
+    const { createGenericFile } = await import('@metaplex-foundation/umi');
+    const collFile = createGenericFile(new TextEncoder().encode(collJsonStr), 'collection.json', { contentType: 'application/json' });
+    const [collUri] = await getUmi().uploader.upload([collFile]);
+    uploadedURIs.collectionURI = collUri;
     log('uploadLog', `✓ Collection metadata: ${uploadedURIs.collectionURI}`, 'ok');
 
     setProg('uploadProgF', 'uploadProgP', 'uploadProgL', 100, 'Complete');
@@ -393,6 +402,9 @@ $('startDeploy').onclick = async () => {
         description: $('deployDesc').value,
         royaltyBps: parseInt($('deployRoyalty').value) || 500,
         creatorAddress: $('deployCreator').value,
+        mintPrice: parseFloat($('mintPrice').value) || 0,
+        mintLimit: parseInt($('mintLimit').value) || 0,
+        startDate: $('mintStart').value || null,
       },
       uploadedURIs.metadataURIs,
       uploadedURIs.collectionURI,
@@ -410,8 +422,11 @@ $('startDeploy').onclick = async () => {
 
     // Setup step 6
     const addr = deployResult.collectionAddress;
+    const cmAddr = deployResult.candyMachineAddress;
     $('finalAddr').textContent = addr;
-    $('finalMinted').textContent = deployResult.mintedCount;
+    if ($('finalCM')) $('finalCM').textContent = cmAddr;
+    $('finalMinted').textContent = deployResult.itemsLoaded;
+    if ($('finalPrice')) $('finalPrice').textContent = ($('mintPrice').value || '0') + ' SOL';
     $('finalNet').textContent = network === 'mainnet-beta' ? 'Mainnet' : 'Devnet';
     const suffix = network === 'devnet' ? '?cluster=devnet' : '';
     $('linkSolscan').href = `https://solscan.io/account/${addr}${suffix}`;
