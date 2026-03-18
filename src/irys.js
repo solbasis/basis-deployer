@@ -1,6 +1,7 @@
 import { WebUploader } from '@irys/web-upload';
 import { WebSolana } from '@irys/web-upload-solana';
 import { getAdapter } from './wallet.js';
+import { RPC_ENDPOINTS } from './rpc.js';
 
 let irysInstance = null;
 
@@ -11,11 +12,7 @@ export async function initIrys(network) {
   const adapter = getAdapter();
   if (!adapter) throw new Error('Wallet not connected');
 
-  const rpcUrl = network === 'mainnet-beta'
-    ? 'https://api.mainnet-beta.solana.com'
-    : 'https://api.devnet.solana.com';
-
-  const irys = await WebUploader(WebSolana).withProvider(adapter).withRpc(rpcUrl).devnet(network !== 'mainnet-beta').build();
+  const irys = await WebUploader(WebSolana).withProvider(adapter).withRpc(RPC_ENDPOINTS[network]).devnet(network !== 'mainnet-beta').build();
 
   irysInstance = irys;
   return irys;
@@ -59,13 +56,6 @@ export async function uploadFile(data, contentType, tags = {}) {
 
 /**
  * Upload all collection assets (images + metadata).
- *
- * Flow:
- * 1. Calculate total upload cost
- * 2. Fund Irys
- * 3. Upload each image → get Arweave URI
- * 4. Update metadata JSON with real image URIs
- * 5. Upload each metadata JSON → get Arweave URI
  */
 export async function uploadCollection(collectionData, onProgress) {
   const { images, metadata } = collectionData;
@@ -92,7 +82,7 @@ export async function uploadCollection(collectionData, onProgress) {
 
   // Get price and fund
   const costSOL = await getUploadPrice(totalSize);
-  const fundAmount = costSOL * 1.1; // 10% buffer
+  const fundAmount = costSOL * 1.1;
   onProgress(0, total, `Funding Irys with ${fundAmount.toFixed(4)} SOL…`);
   await fundIrys(fundAmount);
 

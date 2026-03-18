@@ -1,6 +1,7 @@
 import { PhantomWalletAdapter } from '@solana/wallet-adapter-phantom';
 import { SolflareWalletAdapter } from '@solana/wallet-adapter-solflare';
 import { Connection, clusterApiUrl, LAMPORTS_PER_SOL } from '@solana/web3.js';
+import { RPC_ENDPOINTS } from './rpc.js';
 
 const adapters = {
   phantom: new PhantomWalletAdapter(),
@@ -11,10 +12,7 @@ let currentAdapter = null;
 let connection = null;
 
 export function getConnection(network) {
-  const endpoint = network === 'mainnet-beta'
-    ? 'https://api.mainnet-beta.solana.com'
-    : clusterApiUrl('devnet');
-  connection = new Connection(endpoint, 'confirmed');
+  connection = new Connection(RPC_ENDPOINTS[network], 'confirmed');
   return connection;
 }
 
