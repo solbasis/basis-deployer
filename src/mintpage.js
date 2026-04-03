@@ -21,7 +21,7 @@ export function generateMintPage(config) {
   } = config;
 
   const rpcUrl = network === 'mainnet-beta'
-    ? 'https://mainnet.helius-rpc.com/?api-key=REDACTED_ROTATE_KEY'
+    ? (import.meta.env.VITE_RPC ?? 'https://api.mainnet-beta.solana.com')
     : 'https://api.devnet.solana.com';
 
   const explorerSuffix = network === 'devnet' ? '?cluster=devnet' : '';
