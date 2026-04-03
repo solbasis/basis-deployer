@@ -20,7 +20,7 @@
     "@metaplex-foundation/umi-uploader-irys": "^1.5.0",
     "@solana/wallet-adapter-base": "^0.9.23",
     "@solana/wallet-adapter-phantom": "^0.9.24",
-    "@solana/wallet-adapter-solflare": "^0.6.28",
+    "@solana/wallet-adapter-solflare": "^0.6.33",
     "@solana/web3.js": "^1.95.3",
     "buffer": "^6.0.3",
     "crypto-browserify": "^3.12.1",
