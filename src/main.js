@@ -34,7 +34,10 @@ function showProg(id) { $(id)?.classList.add('show'); }
 function log(id, msg, type = 'info') {
   const el = $(id); if (!el) return;
   el.style.display = 'block';
-  el.innerHTML += `<div class="log-${type}">[${new Date().toLocaleTimeString()}] ${msg}</div>`;
+  const div = document.createElement('div');
+  div.className = 'log-' + type;
+  div.textContent = '[' + new Date().toLocaleTimeString() + '] ' + msg;
+  el.appendChild(div);
   el.scrollTop = el.scrollHeight;
 }
 
@@ -102,7 +105,7 @@ document.getElementById('app').innerHTML = `
       <p style="font-size:.66rem;color:var(--text-dim);margin-bottom:14px">Upload the ZIP exported from <strong style="color:var(--text)">BASIS NFT Builder</strong>.</p>
       <div class="upload-zone" id="zipZone">
         <div style="font-size:1.5rem;opacity:.3">📦</div>
-        <div style="font-size:.72rem;color:var(--text-dim)">Drop collection ZIP here</div>
+        <div style="font-size:.72rem;color:var(--text-dim)">Drop ZIP here or click to browse</div>
         <input type="file" accept=".zip" id="zipUpload">
       </div>
       <div id="colLoaded" style="display:none;margin-top:12px">
@@ -123,7 +126,7 @@ document.getElementById('app').innerHTML = `
     <div class="panel">
       <div class="pbar"><div class="pbar-l"><div class="pdots"><span class="pdot"></span><span class="pdot"></span><span class="pdot"></span></div><div class="plbl">Config</div></div><div class="psts">Review</div></div>
       <h2>> Collection Settings</h2>
-      <div class="g2"><div class="field"><label>Name</label><input type="text" id="deployName"></div><div class="field"><label>Symbol</label><input type="text" id="deploySymbol" maxlength="10"></div></div>
+      <div class="g2"><div class="field"><label>Name <span style="color:var(--neg)">*</span></label><input type="text" id="deployName" placeholder="My Collection"></div><div class="field"><label>Symbol <span style="color:var(--neg)">*</span></label><input type="text" id="deploySymbol" maxlength="10" placeholder="MYCO"></div></div>
       <div class="field"><label>Description</label><input type="text" id="deployDesc"></div>
       <div class="field"><label>External URL</label><input type="url" id="deployUrl"></div>
       <hr><h3>> Mint Settings</h3>
@@ -145,6 +148,7 @@ document.getElementById('app').innerHTML = `
         <div class="kv-row"><span class="kv-k">Config lines</span><span class="kv-v" id="costMint">—</span></div>
         <div class="kv-row" style="border-top:1px solid var(--border-hi)"><span class="kv-k" style="color:var(--text)">Total (creator pays)</span><span class="kv-v" id="costTotal" style="font-size:.74rem;color:var(--pos)">—</span></div>
       </div>
+      <div class="status-bar" id="step3Status"></div>
       <div class="btn-row"><button class="btn" id="backStep3">← Back</button><button class="btn btn-p" id="nextStep3">Continue →</button></div>
     </div>
   </div>
@@ -155,7 +159,8 @@ document.getElementById('app').innerHTML = `
       <div class="pbar"><div class="pbar-l"><div class="pdots"><span class="pdot"></span><span class="pdot"></span><span class="pdot"></span></div><div class="plbl">Arweave Upload</div></div><div class="psts" id="uploadSts">Ready</div></div>
       <h2>> Upload to Arweave via Irys</h2>
       <p style="font-size:.66rem;color:var(--text-dim);margin-bottom:14px">Uploads all images and metadata to permanent Arweave storage. Umi handles funding automatically.</p>
-      <div class="btn-row" style="margin-top:0"><button class="btn" id="backStep4">← Back</button><button class="btn btn-p btn-lg" id="startUpload">⬆ Start Upload</button></div>
+      <div class="status-bar" id="balanceWarning"></div>
+      <div class="btn-row" style="margin-top:8px"><button class="btn" id="backStep4">← Back</button><button class="btn btn-p btn-lg" id="startUpload">⬆ Start Upload</button></div>
       <div class="prog-wrap" id="uploadProg"><div class="prog-lbl"><span id="uploadProgL">…</span><span id="uploadProgP">0%</span></div><div class="prog-track"><div class="prog-fill" id="uploadProgF"></div></div></div>
       <div class="deploy-log" id="uploadLog" style="display:none"></div>
       <div class="status-bar" id="uploadStatus"></div>
@@ -180,10 +185,10 @@ document.getElementById('app').innerHTML = `
     <div class="panel">
       <div class="pbar"><div class="pbar-l"><div class="pdots"><span class="pdot"></span><span class="pdot"></span><span class="pdot"></span></div><div class="plbl">Live</div></div><div class="psts" style="color:var(--pos)">DEPLOYED</div></div>
       <h2>> 🎉 Collection is Live!</h2>
-      <p style="font-size:.66rem;color:var(--text-dim);margin-bottom:10px">Buyers can now mint from your Candy Machine. Auto-indexed on Magic Eden & Tensor.</p>
+      <p style="font-size:.66rem;color:var(--text-dim);margin-bottom:10px">Buyers can now mint from your Candy Machine. Auto-indexed on Magic Eden & Tensor after first mint.</p>
       <div class="kv" style="margin-bottom:12px">
-        <div class="kv-row"><span class="kv-k">Collection</span><span class="kv-v" id="finalAddr" style="font-size:.56rem">—</span></div>
-        <div class="kv-row"><span class="kv-k">Candy Machine</span><span class="kv-v" id="finalCM" style="font-size:.56rem">—</span></div>
+        <div class="kv-row"><span class="kv-k">Collection</span><span class="kv-v" style="display:flex;align-items:center;gap:6px"><span id="finalAddr" style="font-size:.56rem">—</span><button class="copy-btn" id="copyCollectionBtn" title="Copy address">⎘</button></span></div>
+        <div class="kv-row"><span class="kv-k">Candy Machine</span><span class="kv-v" style="display:flex;align-items:center;gap:6px"><span id="finalCM" style="font-size:.56rem">—</span><button class="copy-btn" id="copyCMBtn" title="Copy address">⎘</button></span></div>
         <div class="kv-row"><span class="kv-k">Items Loaded</span><span class="kv-v" id="finalMinted">—</span></div>
         <div class="kv-row"><span class="kv-k">Mint Price</span><span class="kv-v" id="finalPrice">—</span></div>
         <div class="kv-row"><span class="kv-k">Network</span><span class="kv-v" id="finalNet">—</span></div>
@@ -230,6 +235,19 @@ function completeStep(n) {
   if (tab) { tab.classList.add('done'); tab.classList.remove('locked'); }
   const next = document.querySelector(`[data-step="${n + 1}"]`);
   if (next) next.classList.remove('locked');
+}
+
+/* ══════════════════════════════════════
+   COPY TO CLIPBOARD
+══════════════════════════════════════ */
+async function copyText(text, btn) {
+  try {
+    await navigator.clipboard.writeText(text);
+    const orig = btn.textContent;
+    btn.textContent = '✓';
+    btn.style.color = 'var(--pos)';
+    setTimeout(() => { btn.textContent = orig; btn.style.color = ''; }, 1500);
+  } catch {}
 }
 
 /* ══════════════════════════════════════
@@ -282,8 +300,11 @@ $('nextStep1').onclick = () => { if (!walletConnected) return; completeStep(1); 
 /* ══════════════════════════════════════
    STEP 2: LOAD ZIP
 ══════════════════════════════════════ */
-$('zipUpload').onchange = async (e) => {
-  const file = e.target.files?.[0]; if (!file) return;
+async function processZipFile(file) {
+  if (!file || !file.name.endsWith('.zip')) {
+    showSt('zipStatus', 'Please select a valid .zip file.', 'err');
+    return;
+  }
   showProg('zipProg'); setProg('zipProgF', 'zipProgP', 'zipProgL', 10, 'Reading ZIP…');
   try {
     const zip = await JSZip.loadAsync(file);
@@ -298,6 +319,7 @@ $('zipUpload').onchange = async (e) => {
     }
     collectionData = { zip, images, metadata, collJson, file };
     const count = Math.max(Object.keys(images).length, Object.keys(metadata).length);
+    if (count === 0) { showSt('zipStatus', 'No images or metadata found in ZIP. Check folder structure.', 'err'); return; }
     $('colName').textContent = collJson?.name || 'Unknown';
     $('colItems').textContent = count;
     $('colSize').textContent = (file.size / 1024 / 1024).toFixed(1) + ' MB';
@@ -316,13 +338,51 @@ $('zipUpload').onchange = async (e) => {
   } catch (err) {
     showSt('zipStatus', 'Error: ' + err.message, 'err');
   }
+}
+
+$('zipUpload').onchange = (e) => { const f = e.target.files?.[0]; if (f) processZipFile(f); };
+
+// Drag-and-drop support
+const zipZone = $('zipZone');
+zipZone.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  zipZone.style.borderColor = 'var(--a)';
+  zipZone.style.background = 'var(--a06)';
+});
+zipZone.addEventListener('dragleave', () => {
+  zipZone.style.borderColor = '';
+  zipZone.style.background = '';
+});
+zipZone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  zipZone.style.borderColor = '';
+  zipZone.style.background = '';
+  const f = e.dataTransfer?.files?.[0];
+  if (f) processZipFile(f);
+});
+
+$('reloadZip').onclick = () => {
+  collectionData = null;
+  $('colLoaded').style.display = 'none';
+  $('zipZone').style.display = 'flex';
+  $('zipUpload').value = '';
+  hideSt('zipStatus');
 };
-$('reloadZip').onclick = () => { collectionData = null; $('colLoaded').style.display = 'none'; $('zipZone').style.display = 'flex'; $('zipUpload').value = ''; };
 $('nextStep2').onclick = () => { if (!collectionData) return; completeStep(2); goToStep(3); updateCosts(); };
 
 /* ══════════════════════════════════════
    STEP 3: CONFIGURE
 ══════════════════════════════════════ */
+// Validate base58 Solana address (32–44 chars, base58 alphabet only)
+const BASE58_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+function isValidAddress(addr) { return BASE58_RE.test(addr.trim()); }
+
+function parseWhitelistWallets() {
+  const raw = $('wlWallets')?.value?.trim() || '';
+  if (!raw) return [];
+  return raw.split('\n').map(w => w.trim()).filter(w => isValidAddress(w));
+}
+
 function updateCosts() {
   if (!collectionData) return;
   const n = Object.keys(collectionData.images).length;
@@ -335,8 +395,42 @@ function updateCosts() {
   $('costMint').textContent = `${configTxs} txs (~${configCost.toFixed(4)} SOL)`;
   $('costTotal').textContent = `~${total.toFixed(3)} SOL`;
 }
+
 $('backStep3').onclick = () => goToStep(2);
-$('nextStep3').onclick = () => { completeStep(3); goToStep(4); };
+$('nextStep3').onclick = () => {
+  const name = $('deployName').value.trim();
+  const symbol = $('deploySymbol').value.trim();
+  if (!name) { showSt('step3Status', 'Collection Name is required.', 'err'); $('deployName').focus(); return; }
+  if (!symbol) { showSt('step3Status', 'Symbol is required.', 'err'); $('deploySymbol').focus(); return; }
+  const creator = $('deployCreator').value.trim();
+  if (creator && !isValidAddress(creator)) { showSt('step3Status', 'Creator wallet address looks invalid.', 'err'); return; }
+  hideSt('step3Status');
+  completeStep(3);
+  goToStep(4);
+  checkBalance();
+};
+
+/* ══════════════════════════════════════
+   BALANCE WARNING (Step 4)
+══════════════════════════════════════ */
+async function checkBalance() {
+  if (!collectionData) return;
+  try {
+    const bal = await getBalance(network);
+    const n = Object.keys(collectionData.images).length;
+    const sizeMB = collectionData.file.size / 1024 / 1024;
+    const est = 0.015 + 0.02 + (sizeMB / 1024) * 0.8 + 0.05 + Math.ceil(n / 10) * 0.00015;
+    if (bal < est * 1.1) {
+      showSt('balanceWarning',
+        `⚠ Low balance: ${bal.toFixed(4)} SOL. Estimated cost: ~${est.toFixed(3)} SOL. Top up before deploying.`,
+        'warn');
+    } else {
+      showSt('balanceWarning',
+        `✓ Balance: ${bal.toFixed(4)} SOL  |  Estimated cost: ~${est.toFixed(3)} SOL`,
+        'ok');
+    }
+  } catch {}
+}
 
 /* ══════════════════════════════════════
    STEP 4: UPLOAD TO ARWEAVE
@@ -350,31 +444,32 @@ $('startUpload').onclick = async () => {
     $('uploadSts').textContent = 'UPLOADING';
     showProg('uploadProg');
 
-    // Initialize Umi with Irys uploader plugin
     log('uploadLog', 'Initializing Umi + Irys uploader…', 'info');
     initUmi(network);
     log('uploadLog', '✓ Uploader ready', 'ok');
 
-    // Check for resume state
     const resumeState = getResumeState();
     if (resumeState) {
       log('uploadLog', '⚡ Found previous upload progress — resuming…', 'warn');
     }
 
-    // Upload all images + metadata (with batch + resume)
     log('uploadLog', 'Starting collection upload (batches of 10)…', 'info');
     uploadedURIs = await uploadCollection(collectionData, (done, total, msg) => {
       const pct = (done / total) * 100;
       setProg('uploadProgF', 'uploadProgP', 'uploadProgL', pct, msg);
     }, (msg, type) => log('uploadLog', msg, type));
 
-    // Upload collection.json with first image URI
+    // Find collection image from any supported extension
     log('uploadLog', 'Uploading collection metadata…', 'info');
+    const imgURIs = uploadedURIs.imageURIs;
+    const collectionImageUri =
+      imgURIs['0.png'] || imgURIs['0.jpg'] || imgURIs['0.jpeg'] || imgURIs['0.webp'] || '';
     const collJsonStr = JSON.stringify({
       ...collectionData.collJson,
-      image: uploadedURIs.imageURIs['0.png'] || uploadedURIs.imageURIs['0.jpg'] || uploadedURIs.imageURIs['0.webp'] || '',
+      image: collectionImageUri,
     }, null, 2);
     uploadedURIs.collectionURI = await uploadFile(collJsonStr, 'collection.json', 'application/json');
+    uploadedURIs.collectionImageUri = collectionImageUri;
     log('uploadLog', `✓ Collection metadata: ${uploadedURIs.collectionURI}`, 'ok');
 
     setProg('uploadProgF', 'uploadProgP', 'uploadProgL', 100, 'Complete');
@@ -401,29 +496,28 @@ $('startDeploy').onclick = async () => {
     $('deploySts').textContent = 'DEPLOYING';
     showProg('deployProg');
 
-    // Umi already initialized in upload step — but reinit to be safe
     log('deployLog', 'Initializing Umi…', 'info');
     if (!getUmi()) initUmi(network);
     log('deployLog', '✓ Umi ready', 'ok');
 
-    // Parse whitelist wallets
-    const wlText = $('wlWallets')?.value?.trim() || '';
-    const wlWallets = wlText ? wlText.split('\n').map(w => w.trim()).filter(w => w.length > 30) : [];
+    const wlWallets = parseWhitelistWallets();
+    const mintLimitVal = parseInt($('mintLimit').value) || 0;
+    const wlLimitVal = parseInt($('wlLimit')?.value) || 1;
 
     deployResult = await fullDeploy(
       {
-        name: $('deployName').value,
-        symbol: $('deploySymbol').value,
+        name: $('deployName').value.trim(),
+        symbol: $('deploySymbol').value.trim(),
         description: $('deployDesc').value,
         royaltyBps: parseInt($('deployRoyalty').value) || 500,
-        creatorAddress: $('deployCreator').value,
+        creatorAddress: $('deployCreator').value.trim(),
         mintPrice: parseFloat($('mintPrice').value) || 0,
-        mintLimit: parseInt($('mintLimit').value) || 0,
+        mintLimit: mintLimitVal,
         startDate: $('mintStart').value || null,
         whitelist: wlWallets.length > 0 ? {
           wallets: wlWallets,
           price: parseFloat($('wlPrice')?.value) || 0,
-          limit: parseInt($('wlLimit')?.value) || 1,
+          limit: wlLimitVal,
           startDate: $('wlStart')?.value || null,
         } : null,
         publicStartDate: $('publicStart')?.value || null,
@@ -441,7 +535,7 @@ $('startDeploy').onclick = async () => {
     showSt('deployStatus', '✓ Candy Machine deployed', 'ok');
     completeStep(5);
 
-    // Setup step 6
+    // Populate step 6
     const addr = deployResult.collectionAddress;
     const cmAddr = deployResult.candyMachineAddress;
     $('finalAddr').textContent = addr;
@@ -449,29 +543,35 @@ $('startDeploy').onclick = async () => {
     $('finalMinted').textContent = deployResult.itemsLoaded;
     $('finalPrice').textContent = ($('mintPrice').value || '0') + ' SOL';
     $('finalNet').textContent = network === 'mainnet-beta' ? 'Mainnet' : 'Devnet';
+
+    // Copy buttons
+    $('copyCollectionBtn').onclick = (e) => copyText(addr, e.currentTarget);
+    $('copyCMBtn').onclick = (e) => copyText(cmAddr, e.currentTarget);
+
     const suffix = network === 'devnet' ? '?cluster=devnet' : '';
     $('linkSolscan').href = `https://solscan.io/account/${addr}${suffix}`;
     $('linkExplorer').href = `https://explorer.solana.com/address/${addr}${suffix}`;
     $('linkME').href = `https://magiceden.io/marketplace/${addr}`;
     $('linkTensor').href = `https://www.tensor.trade/trade/${addr}`;
 
-    // Mint page download handler
+    // Mint page download — pass all guard config
     $('downloadMintPage').onclick = () => {
-      const wlText2 = $('wlWallets')?.value?.trim() || '';
-      const wlList = wlText2 ? wlText2.split('\n').map(w => w.trim()).filter(w => w.length > 30) : [];
+      const wlList = parseWhitelistWallets();
       downloadMintPage({
-        collectionName: $('deployName').value,
+        collectionName: $('deployName').value.trim(),
         collectionAddress: deployResult.collectionAddress,
         candyMachineAddress: deployResult.candyMachineAddress,
         mintPrice: parseFloat($('mintPrice').value) || 0,
         totalItems: deployResult.itemsLoaded,
         network,
-        collectionImageUri: uploadedURIs?.imageURIs?.['0.png'] || uploadedURIs?.imageURIs?.['0.jpg'] || '',
+        collectionImageUri: uploadedURIs?.collectionImageUri || '',
         description: $('deployDesc').value,
-        creatorAddress: $('deployCreator').value,
+        creatorAddress: $('deployCreator').value.trim(),
         hasWhitelist: wlList.length > 0,
         whitelistWallets: wlList,
         wlPrice: parseFloat($('wlPrice')?.value) || 0,
+        mintLimit: parseInt($('mintLimit').value) || 0,
+        wlMintLimit: parseInt($('wlLimit')?.value) || 0,
       });
     };
 

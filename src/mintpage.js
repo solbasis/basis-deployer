@@ -4,6 +4,21 @@
  * The page connects to Phantom/Solflare and mints from the Candy Machine.
  */
 
+/** Escape a string for safe embedding in HTML content */
+function escHtml(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/** Escape a string for safe embedding in JS string literals */
+function escJs(str) {
+  return String(str || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n');
+}
+
 export function generateMintPage(config) {
   const {
     collectionName,
@@ -18,6 +33,8 @@ export function generateMintPage(config) {
     hasWhitelist,
     whitelistWallets,
     wlPrice,
+    mintLimit,
+    wlMintLimit,
   } = config;
 
   const rpcUrl = network === 'mainnet-beta'
@@ -27,13 +44,24 @@ export function generateMintPage(config) {
   const explorerSuffix = network === 'devnet' ? '?cluster=devnet' : '';
   const priceDisplay = mintPrice > 0 ? `${mintPrice} SOL` : 'FREE';
 
+  // Safe values for embedding in HTML
+  const safeCollectionName = escHtml(collectionName);
+  const safeDescription = escHtml(description);
+
+  // Safe values for embedding in JS string literals
+  const jsCollectionName = escJs(collectionName);
+  const jsRpcUrl = escJs(rpcUrl);
+  const jsCmId = escJs(candyMachineAddress);
+  const jsCollectionId = escJs(collectionAddress);
+  const jsTreasury = escJs(creatorAddress);
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>Mint — ${collectionName}</title>
-<meta name="description" content="${(description || '').replace(/"/g, '&quot;')}"/>
+<title>Mint — ${safeCollectionName}</title>
+<meta name="description" content="${escHtml(description)}"/>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -85,13 +113,13 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;background:ra
 </head>
 <body>
 <div class="card">
-  ${collectionImageUri ? `<img class="col-img" src="${collectionImageUri}" alt="${collectionName}" onerror="this.style.display='none'">` : ''}
-  <div class="col-name">${collectionName}</div>
-  <div class="col-desc">${description || ''}</div>
-  
+  ${collectionImageUri ? `<img class="col-img" src="${escHtml(collectionImageUri)}" alt="${safeCollectionName}" onerror="this.style.display='none'">` : ''}
+  <div class="col-name">${safeCollectionName}</div>
+  <div class="col-desc">${safeDescription}</div>
+
   <div class="stats">
-    <div class="stat"><div class="stat-val">${priceDisplay}</div><div class="stat-lbl">Price</div></div>
-    <div class="stat"><div class="stat-val">${totalItems}</div><div class="stat-lbl">Supply</div></div>
+    <div class="stat"><div class="stat-val">${escHtml(priceDisplay)}</div><div class="stat-lbl">Price</div></div>
+    <div class="stat"><div class="stat-val">${Number(totalItems)}</div><div class="stat-lbl">Supply</div></div>
     <div class="stat"><div class="stat-val" id="minted">—</div><div class="stat-lbl">Minted</div></div>
   </div>
   ${hasWhitelist ? '<div style="font-size:.60rem;color:var(--warn);padding:6px 10px;border:1px solid rgba(212,168,67,.2);border-radius:6px;margin-bottom:12px;text-align:center">★ Whitelist phase active — WL wallets mint first</div>' : ''}
@@ -109,12 +137,12 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;background:ra
   </div>
 
   <button class="mint-btn" id="mintBtn" disabled onclick="doMint()">Connect Wallet First</button>
-  
+
   <div class="progress" id="progress"><div class="progress-fill" id="progressFill"></div></div>
   <div class="status" id="status"></div>
 
   <div class="footer">
-    Powered by <a href="#">BASIS</a> · <a href="https://solscan.io/account/${collectionAddress}${explorerSuffix}" target="_blank">View on Solscan</a>
+    Powered by <a href="#">BASIS</a> · <a href="https://solscan.io/account/${escHtml(collectionAddress)}${explorerSuffix}" target="_blank">View on Solscan</a>
   </div>
 </div>
 
@@ -124,42 +152,49 @@ import { walletAdapterIdentity } from 'https://esm.sh/@metaplex-foundation/umi-s
 import { mplCandyMachine, fetchCandyMachine, mintV1, safeFetchCandyGuard, route, getMerkleRoot, getMerkleProof } from 'https://esm.sh/@metaplex-foundation/mpl-core-candy-machine@0.3.0';
 import { mplCore } from 'https://esm.sh/@metaplex-foundation/mpl-core@1.1.1';
 import { generateSigner, transactionBuilder, publicKey, some, sol } from 'https://esm.sh/@metaplex-foundation/umi@0.9.2';
-import { setComputeUnitLimit } from 'https://esm.sh/@metaplex-foundation/mpl-toolbox@0.9.4';
+import { setComputeUnitLimit, setComputeUnitPrice } from 'https://esm.sh/@metaplex-foundation/mpl-toolbox@0.9.4';
 import { PhantomWalletAdapter } from 'https://esm.sh/@solana/wallet-adapter-phantom@0.9.24';
 import { SolflareWalletAdapter } from 'https://esm.sh/@solana/wallet-adapter-solflare@0.6.28';
 
-const CM_ID = '${candyMachineAddress}';
-const COLLECTION_ID = '${collectionAddress}';
-const MINT_PRICE = ${mintPrice || 0};
-const WL_PRICE = ${wlPrice || 0};
-const TREASURY = '${creatorAddress}';
-const RPC = '${rpcUrl}';
-const HAS_WL = ${hasWhitelist ? 'true' : 'false'};
-const WL_WALLETS = ${hasWhitelist ? JSON.stringify(whitelistWallets || []) : '[]'};
+const CM_ID        = '${jsCmId}';
+const COLLECTION_ID = '${jsCollectionId}';
+const MINT_PRICE   = ${Number(mintPrice) || 0};
+const WL_PRICE     = ${Number(wlPrice) || 0};
+const TREASURY     = '${jsTreasury}';
+const RPC          = '${jsRpcUrl}';
+const HAS_WL       = ${hasWhitelist ? 'true' : 'false'};
+const WL_WALLETS   = ${hasWhitelist ? JSON.stringify(whitelistWallets || []) : '[]'};
+// MintLimit guard IDs — must match what was set on the Candy Machine
+// Without WL: public uses id 1. With WL: WL uses id 1, public uses id 2.
+const MINT_LIMIT    = ${Number(mintLimit) || 0};   // 0 = no limit on public
+const WL_MINT_LIMIT = ${Number(wlMintLimit) || 0}; // 0 = no limit on WL
+const PRIORITY_FEE  = 10_000; // microLamports
 
 const adapters = { phantom: new PhantomWalletAdapter(), solflare: new SolflareWalletAdapter() };
-let umi = null;
+let umi    = null;
 let wallet = null;
-let qty = 1;
+let qty    = 1;
 
-const $=id=>document.getElementById(id);
-function showStatus(msg, type='info') {
-  const el=$('status'); el.textContent=msg; el.className='status show '+type;
+const $ = id => document.getElementById(id);
+function showStatus(msg, type = 'info') {
+  const el = $('status');
+  el.textContent = msg;
+  el.className = 'status show ' + type;
 }
 
-// Fetch minted count on load
+// Fetch live minted count from on-chain candy machine
 async function fetchMintedCount() {
   try {
     const tempUmi = createUmi(RPC).use(mplCandyMachine()).use(mplCore());
-    const cm = await fetchCandyMachine(tempUmi, publicKey(CM_ID));
-    const minted = Number(cm.itemsRedeemed);
-    const total = Number(cm.data.itemsAvailable);
+    const cm      = await fetchCandyMachine(tempUmi, publicKey(CM_ID));
+    const minted  = Number(cm.itemsRedeemed);
+    const total   = Number(cm.data.itemsAvailable);
     $('minted').textContent = minted + '/' + total;
     if (minted >= total) {
       $('mintBtn').textContent = 'SOLD OUT';
       $('mintBtn').disabled = true;
     }
-  } catch(e) { console.error('Fetch CM:', e); }
+  } catch (e) { console.error('Fetch CM:', e); }
 }
 fetchMintedCount();
 
@@ -173,12 +208,12 @@ window.connect = async function(name) {
       .use(mplCandyMachine())
       .use(mplCore());
     const addr = adapter.publicKey.toBase58();
-    $('walletAddr').textContent = addr.slice(0,4) + '…' + addr.slice(-4);
-    $('btn'+name.charAt(0).toUpperCase()+name.slice(1)).classList.add('connected');
+    $('walletAddr').textContent = addr.slice(0, 4) + '…' + addr.slice(-4);
+    $('btn' + name.charAt(0).toUpperCase() + name.slice(1)).classList.add('connected');
     $('mintBtn').disabled = false;
     updateMintButton();
     showStatus('Wallet connected', 'ok');
-  } catch(e) { showStatus('Connection failed: '+e.message, 'err'); }
+  } catch (e) { showStatus('Connection failed: ' + e.message, 'err'); }
 };
 
 window.changeQty = function(d) {
@@ -187,15 +222,13 @@ window.changeQty = function(d) {
   if (wallet) updateMintButton();
 };
 
-let isWL = false;
-let wlVerified = false;
-
-// Check if connected wallet is on whitelist
+// Check if connected wallet is on the whitelist — called fresh each time
 function checkWL() {
   if (!HAS_WL || !wallet) return false;
-  const addr = wallet.publicKey.toBase58();
-  return WL_WALLETS.includes(addr);
+  return WL_WALLETS.includes(wallet.publicKey.toBase58());
 }
+
+let wlVerified = false;
 
 window.doMint = async function() {
   if (!umi || !wallet) return;
@@ -203,15 +236,17 @@ window.doMint = async function() {
   $('mintBtn').textContent = 'MINTING…';
   $('progress').classList.add('show');
 
+  // Always derive WL status fresh — never use a stale cached value
+  const isWL  = checkWL();
   const useWL = HAS_WL && isWL;
   const price = useWL ? WL_PRICE : MINT_PRICE;
   const group = HAS_WL ? (useWL ? 'wl' : 'public') : null;
 
-  // Verify WL merkle proof if needed (one-time per wallet)
+  // Verify WL merkle proof (one-time per wallet session)
   if (useWL && !wlVerified) {
     try {
       showStatus('Verifying whitelist…', 'info');
-      const merkleRoot = getMerkleRoot(WL_WALLETS);
+      const merkleRoot  = getMerkleRoot(WL_WALLETS);
       const merkleProof = getMerkleProof(WL_WALLETS, wallet.publicKey.toBase58());
       await route(umi, {
         candyMachine: publicKey(CM_ID),
@@ -221,10 +256,10 @@ window.doMint = async function() {
       }).sendAndConfirm(umi);
       wlVerified = true;
       showStatus('✓ Whitelist verified', 'ok');
-    } catch(e) {
+    } catch (e) {
       showStatus('WL verification failed: ' + e.message, 'err');
       $('mintBtn').disabled = false;
-      $('mintBtn').textContent = 'MINT';
+      updateMintButton();
       return;
     }
   }
@@ -233,31 +268,41 @@ window.doMint = async function() {
   for (let i = 0; i < qty; i++) {
     try {
       const nftSigner = generateSigner(umi);
+
+      // Build guard mint arguments based on active guards
       const mintArgs = {};
       if (price > 0) mintArgs.solPayment = some({ destination: publicKey(TREASURY) });
-      if (useWL) mintArgs.allowList = some({ merkleRoot: getMerkleRoot(WL_WALLETS) });
+      if (useWL) {
+        mintArgs.allowList = some({ merkleRoot: getMerkleRoot(WL_WALLETS) });
+        if (WL_MINT_LIMIT > 0) mintArgs.mintLimit = some({ id: 1 });
+      } else if (MINT_LIMIT > 0) {
+        // Without WL: id 1; With WL in public group: id 2
+        mintArgs.mintLimit = some({ id: HAS_WL ? 2 : 1 });
+      }
 
-      let tx = transactionBuilder()
+      const tx = transactionBuilder()
         .add(setComputeUnitLimit(umi, { units: 800_000 }))
+        .add(setComputeUnitPrice(umi, { microLamports: PRIORITY_FEE }))
         .add(mintV1(umi, {
           candyMachine: publicKey(CM_ID),
-          collection: publicKey(COLLECTION_ID),
-          asset: nftSigner,
+          collection:   publicKey(COLLECTION_ID),
+          asset:        nftSigner,
           mintArgs,
           ...(group ? { group: some(group) } : {}),
         }));
-      await tx.sendAndConfirm(umi);
+
+      await tx.sendAndConfirm(umi, { confirm: { commitment: 'confirmed' } });
       minted++;
-      $('progressFill').style.width = ((i+1)/qty*100)+'%';
-      showStatus('Minted ' + minted + '/' + qty, 'ok');
-    } catch(e) {
+      $('progressFill').style.width = ((i + 1) / qty * 100) + '%';
+      showStatus('Minted ' + minted + '/' + qty + '…', 'ok');
+    } catch (e) {
       showStatus('Mint failed: ' + e.message, 'err');
       break;
     }
   }
 
   if (minted > 0) {
-    showStatus('✓ Minted ' + minted + ' NFT' + (minted>1?'s':'') + '!', 'ok');
+    showStatus('✓ Minted ' + minted + ' NFT' + (minted > 1 ? 's' : '') + '!', 'ok');
     fetchMintedCount();
   }
   $('mintBtn').disabled = false;
@@ -266,10 +311,12 @@ window.doMint = async function() {
 
 function updateMintButton() {
   if (!wallet) { $('mintBtn').textContent = 'Connect Wallet First'; return; }
-  isWL = checkWL();
+  const isWL  = checkWL();
   const price = isWL ? WL_PRICE : MINT_PRICE;
   const label = isWL ? '★ WL MINT' : 'MINT';
-  $('mintBtn').textContent = price > 0 ? label + ' ' + (price * qty) + ' SOL' : label + ' FREE';
+  $('mintBtn').textContent = price > 0
+    ? label + ' ' + (price * qty).toFixed(3).replace(/\.?0+$/, '') + ' SOL'
+    : label + ' FREE';
 }
 <\/script>
 </body>
@@ -282,9 +329,9 @@ function updateMintButton() {
 export function downloadMintPage(config) {
   const html = generateMintPage(config);
   const blob = new Blob([html], { type: 'text/html' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
   a.download = `${(config.collectionName || 'mint').replace(/\s+/g, '-').toLowerCase()}-mint-page.html`;
   document.body.appendChild(a);
   a.click();

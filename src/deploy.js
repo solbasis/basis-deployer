@@ -5,11 +5,15 @@ import { createCollection, mplCore } from '@metaplex-foundation/mpl-core';
 import {
   mplCandyMachine, create, addConfigLines, getMerkleRoot,
 } from '@metaplex-foundation/mpl-core-candy-machine';
-import { generateSigner, publicKey, some, sol, dateTime } from '@metaplex-foundation/umi';
+import { generateSigner, publicKey, some, sol, dateTime, transactionBuilder } from '@metaplex-foundation/umi';
+import { setComputeUnitLimit, setComputeUnitPrice } from '@metaplex-foundation/mpl-toolbox';
 import { getAdapter } from './wallet.js';
 import { RPC_ENDPOINTS } from './rpc.js';
 
 let umi = null;
+
+// Priority fee in microLamports — high enough to land reliably on mainnet
+const PRIORITY_FEE = 10_000;
 
 export function initUmi(network) {
   const adapter = getAdapter();
@@ -30,9 +34,17 @@ export async function createOnChainCollection(config, onLog) {
   onLog('Generating collection keypair…', 'info');
   const signer = generateSigner(umi);
   onLog('Creating collection: ' + config.name + '…', 'info');
-  await createCollection(umi, {
-    collection: signer, name: config.name, uri: config.collectionUri,
-  }).sendAndConfirm(umi);
+
+  await transactionBuilder()
+    .add(setComputeUnitLimit(umi, { units: 200_000 }))
+    .add(setComputeUnitPrice(umi, { microLamports: PRIORITY_FEE }))
+    .add(createCollection(umi, {
+      collection: signer,
+      name: config.name,
+      uri: config.collectionUri,
+    }))
+    .sendAndConfirm(umi, { confirm: { commitment: 'confirmed' } });
+
   const addr = signer.publicKey.toString();
   onLog('✓ Collection: ' + addr, 'ok');
   return { address: addr, signer };
@@ -87,8 +99,12 @@ export async function createCandyMachine(config, collectionSigner, onLog) {
     createArgs.guards = guards;
   }
 
-  const cmBuilder = await create(umi, createArgs);
-  await cmBuilder.sendAndConfirm(umi);
+  await transactionBuilder()
+    .add(setComputeUnitLimit(umi, { units: 500_000 }))
+    .add(setComputeUnitPrice(umi, { microLamports: PRIORITY_FEE }))
+    .add(create(umi, createArgs))
+    .sendAndConfirm(umi, { confirm: { commitment: 'confirmed' } });
+
   const addr = cmSigner.publicKey.toString();
   onLog('✓ Candy Machine: ' + addr, 'ok');
   onLog('  Supply: ' + config.totalItems + ' | Price: ' + (config.mintPrice || 'FREE') + ' SOL', 'info');
@@ -102,25 +118,35 @@ export async function addItems(cmAddr, items, onProgress, onLog) {
   const BATCH = 10;
   const total = Math.ceil(items.length / BATCH);
   onLog('Adding ' + items.length + ' items in ' + total + ' batches…', 'info');
+
   for (let b = 0; b < total; b++) {
     const start = b * BATCH;
     const end = Math.min(start + BATCH, items.length);
     const lines = items.slice(start, end).map(i => ({ name: i.name, uri: i.uri }));
+
+    const buildBatchTx = () => transactionBuilder()
+      .add(setComputeUnitLimit(umi, { units: 150_000 }))
+      .add(setComputeUnitPrice(umi, { microLamports: PRIORITY_FEE }))
+      .add(addConfigLines(umi, { candyMachine: pk, index: start, configLines: lines }));
+
     try {
-      const lnBuilder = addConfigLines(umi, { candyMachine: pk, index: start, configLines: lines });
-      await lnBuilder.sendAndConfirm(umi);
+      await buildBatchTx().sendAndConfirm(umi, { confirm: { commitment: 'confirmed' } });
       onProgress(end, items.length, 'Added ' + end + '/' + items.length);
     } catch (err) {
-      onLog('  Batch ' + (b+1) + ' failed: ' + err.message + ' — retrying…', 'warn');
-      await new Promise(r => setTimeout(r, 2000));
+      onLog('  Batch ' + (b + 1) + ' failed: ' + err.message + ' — retrying in 3s…', 'warn');
+      await new Promise(r => setTimeout(r, 3000));
       try {
-        const lnBuilder = addConfigLines(umi, { candyMachine: pk, index: start, configLines: lines });
-      await lnBuilder.sendAndConfirm(umi);
+        await buildBatchTx().sendAndConfirm(umi, { confirm: { commitment: 'confirmed' } });
         onProgress(end, items.length, 'Retried ' + end + '/' + items.length);
-      } catch (e2) { onLog('  Retry failed: ' + e2.message, 'err'); }
+      } catch (e2) {
+        onLog('  Retry failed (batch ' + (b + 1) + '): ' + e2.message, 'err');
+      }
     }
-    if (b % 3 === 0 && b > 0) await new Promise(r => setTimeout(r, 500));
+
+    // Rate limit: brief pause every 5 batches to avoid RPC throttling
+    if (b > 0 && b % 5 === 0) await new Promise(r => setTimeout(r, 800));
   }
+
   onLog('✓ All ' + items.length + ' items loaded', 'ok');
 }
 
@@ -133,12 +159,21 @@ export async function fullDeploy(config, metadataURIs, collectionMetaURI, onProg
 
   onLog('══ STEP 2/3: Create Candy Machine ══', 'info');
   const items = Object.entries(metadataURIs)
-    .sort((a, b) => parseInt(a[0]) - parseInt(b[0]))
+    .sort((a, b) => {
+      const aNum = parseInt(a[0]);
+      const bNum = parseInt(b[0]);
+      if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
+      return a[0].localeCompare(b[0]);
+    })
     .map(([fn, uri]) => ({ name: config.name + ' #' + fn.replace('.json', ''), uri }));
+
   const cm = await createCandyMachine({
-    totalItems: items.length, mintPrice: config.mintPrice || 0,
-    startDate: config.startDate || null, mintLimit: config.mintLimit || 0,
-    treasury: config.creatorAddress, whitelist: config.whitelist || null,
+    totalItems: items.length,
+    mintPrice: config.mintPrice || 0,
+    startDate: config.startDate || null,
+    mintLimit: config.mintLimit || 0,
+    treasury: config.creatorAddress,
+    whitelist: config.whitelist || null,
     publicStartDate: config.publicStartDate || null,
   }, coll.signer, onLog);
   onProgress('step', 30, 100, 'Candy Machine created');
@@ -154,6 +189,11 @@ export async function fullDeploy(config, metadataURIs, collectionMetaURI, onProg
   onLog('Collection: ' + coll.address, 'ok');
   onLog('Candy Machine: ' + cm.address, 'ok');
   onLog('Items: ' + items.length + ' | Price: ' + (config.mintPrice || 'FREE') + ' SOL', 'ok');
-  onLog('Buyers mint on demand — auto-listed on Magic Eden & Tensor.', 'info');
-  return { collectionAddress: coll.address, candyMachineAddress: cm.address, itemsLoaded: items.length };
+  onLog('Auto-listed on Magic Eden & Tensor after first mint.', 'info');
+
+  return {
+    collectionAddress: coll.address,
+    candyMachineAddress: cm.address,
+    itemsLoaded: items.length,
+  };
 }

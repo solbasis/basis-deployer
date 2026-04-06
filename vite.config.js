@@ -1,20 +1,15 @@
 import { defineConfig } from 'vite';
+import { nodePolyfills } from 'vite-plugin-node-polyfills';
 
 export default defineConfig({
   base: './',
-  define: {
-    'process.env': {},
-    global: 'globalThis',
-  },
-  resolve: {
-    alias: {
-      buffer: 'buffer',
-      stream: 'stream-browserify',
-      crypto: 'crypto-browserify',
-      events: 'events',
-      util: 'util',
-    },
-  },
+  plugins: [
+    nodePolyfills({
+      // Polyfill specific globals and modules needed by @solana/web3.js + Metaplex
+      globals: { Buffer: true, global: true, process: true },
+      protocolImports: true,
+    }),
+  ],
   build: {
     target: 'esnext',
     commonjsOptions: {
