@@ -142,7 +142,7 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;background:ra
   <div class="status" id="status"></div>
 
   <div class="footer">
-    Powered by <a href="#">BASIS</a> · <a href="https://solscan.io/account/${escHtml(collectionAddress)}${explorerSuffix}" target="_blank">View on Solscan</a>
+    Powered by <a href="#">BASIS</a> · <a href="https://orbmarkets.io/account/${escHtml(collectionAddress)}" target="_blank">View on Orb</a>
   </div>
 </div>
 

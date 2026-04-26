@@ -195,7 +195,7 @@ document.getElementById('app').innerHTML = `
       </div>
       <h3>> View On</h3>
       <div class="btn-row" style="margin-top:0">
-        <a class="btn" id="linkSolscan" href="#" target="_blank">Solscan</a>
+        <a class="btn" id="linkOrb" href="#" target="_blank">Orb</a>
         <a class="btn" id="linkExplorer" href="#" target="_blank">Explorer</a>
         <a class="btn" id="linkME" href="#" target="_blank">Magic Eden</a>
         <a class="btn" id="linkTensor" href="#" target="_blank">Tensor</a>
@@ -549,7 +549,11 @@ $('startDeploy').onclick = async () => {
     $('copyCMBtn').onclick = (e) => copyText(cmAddr, e.currentTarget);
 
     const suffix = network === 'devnet' ? '?cluster=devnet' : '';
-    $('linkSolscan').href = `https://solscan.io/account/${addr}${suffix}`;
+    // Orb is mainnet-only; on devnet builds, fall back to the Solana
+    // public explorer (which supports the cluster param).
+    $('linkOrb').href = network === 'devnet'
+      ? `https://explorer.solana.com/address/${addr}?cluster=devnet`
+      : `https://orbmarkets.io/account/${addr}`;
     $('linkExplorer').href = `https://explorer.solana.com/address/${addr}${suffix}`;
     $('linkME').href = `https://magiceden.io/marketplace/${addr}`;
     $('linkTensor').href = `https://www.tensor.trade/trade/${addr}`;
